@@ -1,4 +1,6 @@
 *.class
+*.log
+*target*
 
 # Package Files #
 *.jar
