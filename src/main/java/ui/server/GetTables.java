@@ -45,7 +45,6 @@ import ui.shared.PubmedInfo;
 import ui.shared.StatUtils;
 import ui.shared.URLReader;
 
-
 /**
  * @author Jose Cruz-Toledo
  * 
@@ -109,6 +108,20 @@ public class GetTables extends HttpServlet {
 							rm += x + "," + y + ", http://freebase.com"
 									+ coordinate.getMid() + "\n";
 						}
+					}
+					out.println(rm);
+				}
+			} else if (graphname.equalsIgnoreCase("kdvstemplatelength")) {
+				String rm = "";
+				if (desc == true) {
+					out.println("A chart of an experiment's best kd vs template length");
+				} else {
+					List<Coordinate<Double, Double, Double>> coords = this
+							.makeKdVsTemplateLength(aptamerType, log);
+					rm = "Best Kd, Template Length\n";
+					for (Coordinate<Double, Double, Double> coordinate : coords) {
+						rm += coordinate.getX() + "," + coordinate.getY()
+								+ "\n";
 					}
 					out.println(rm);
 				}
@@ -634,15 +647,18 @@ public class GetTables extends HttpServlet {
 							p: for (int j = 0; j < minArr.length(); j++) {
 								JSONObject aminApt = minArr.getJSONObject(j);
 								try {
-									String min_seq = aminApt.getString("/base/aptamer/linear_polymer/sequence");
+									String min_seq = aminApt
+											.getString("/base/aptamer/linear_polymer/sequence");
 									if (min_seq.length() > 0) {
-										//remove the double quotes
+										// remove the double quotes
 										min_seq.replace("\"", "");
-										Pattern p = Pattern.compile("[ACGTRUYKMSWBDHVNX]+");
+										Pattern p = Pattern
+												.compile("[ACGTRUYKMSWBDHVNX]+");
 										Matcher m = p.matcher(min_seq);
 										if (m.matches()) {
-											minimalLengths.add((double)min_seq.length());
-										}else{
+											minimalLengths.add((double) min_seq
+													.length());
+										} else {
 											continue p;
 										}
 									} else {
@@ -652,10 +668,12 @@ public class GetTables extends HttpServlet {
 									continue p;
 								}
 							}
-							//create a coordinate
-							if(minimalLengths.size() >0){
-								Double avg = StatUtils.computeAverage(minimalLengths);
-								Coordinate<Integer, Double, Double> c = new Coordinate<Integer, Double, Double>(seq.length(), avg, null);
+							// create a coordinate
+							if (minimalLengths.size() > 0) {
+								Double avg = StatUtils
+										.computeAverage(minimalLengths);
+								Coordinate<Integer, Double, Double> c = new Coordinate<Integer, Double, Double>(
+										seq.length(), avg, null);
 								rm.add(c);
 							}
 						} else {
@@ -685,6 +703,135 @@ public class GetTables extends HttpServlet {
 		}
 
 		return rm;
+	}
+
+	//TODO:finishme
+	private List<Coordinate<Double, Double, Double>> makeKdVsTemplateLength(
+			String anAptamerType, boolean negativeLog10) {
+		List<Coordinate<Double, Double, Double>> rm = new ArrayList<Coordinate<Double, Double, Double>>();
+		String q = makeKdVsTemplateLengthQuery(anAptamerType) + "&cursor";
+		URLReader ur = new URLReader(FreebaseCredentials.getScheme(),
+				FreebaseCredentials.getHost(), FreebaseCredentials.getPath(),
+				q, FreebaseCredentials.getKey());
+		JSONObject rc = ur.getJSON();
+		try {
+			JSONArray r = rc.getJSONArray("result");
+			boolean lf = true;
+			while (lf) {
+				String cursorVal = rc.getString("cursor").replace("\"", "");
+				r: for (int i = 0; i < r.length(); i++) {
+					JSONObject ja = r.getJSONObject(i);
+					// get the best kd
+					Double kd_val = -1.0;
+					JSONArray outs = ja
+							.getJSONArray("/base/aptamer/experiment/has_outcome");
+					for (int j = 0; j < outs.length(); j++) {
+						JSONObject anInteraction = outs.getJSONObject(j);
+						JSONArray kds = anInteraction
+								.getJSONArray("/base/aptamer/interaction/has_dissociation_constant");
+						List<Double> tmpKds = new ArrayList<Double>();
+						for (int k = 0; k < kds.length(); k++) {
+							JSONObject currKd = kds.getJSONObject(j);
+							String kd = currKd
+									.getString("/base/aptamer/dissociation_constant/has_value");
+							String kd_tmp = currKd
+									.getString(
+											"/base/aptamer/dissociation_constant/has_temporary_string_value")
+									.replace("\"", "");
+							Double aKd = -1.0;
+							try {
+								aKd = Double.parseDouble(kd);
+							} catch (NumberFormatException e) {
+								try {
+									aKd = Double.parseDouble(kd_tmp);
+								} catch (NumberFormatException e2) {
+									aKd = -1.0;
+								}
+							}
+
+							if (negativeLog10 == true) {
+								if (aKd > 0.0) {
+									Double x = (-1) * Math.log10(aKd);
+									tmpKds.add(x);
+								}
+							} else {
+								tmpKds.add(aKd);
+							}
+						}
+						//find the best kd
+						kd_val = StatUtils.getMin(tmpKds);
+						//now get the template length
+						List<Double> templateLengths = new ArrayList<Double>();
+						JSONArray ecArr = anInteraction
+								.getJSONArray("/base/aptamer/experiment/has_experimetal_conditions");
+						for (int w = 0; w < ecArr.length(); w++) {
+							JSONObject anEc = ecArr.getJSONObject(w);
+							String aTemplate = null;
+							try {
+								aTemplate = anEc
+										.getJSONArray(
+												"/base/aptamer/selex_conditions/has_template_sequence")
+										.getString(0);
+							} catch (JSONException e) {
+								continue r;
+							}
+							Pattern p = Pattern.compile("\\w+\\-N(\\d+)\\-\\w+");
+							Matcher m = p.matcher(aTemplate);
+							if (m.matches()) {
+								String length = m.group(1);
+								try {
+									templateLengths.add(Double.parseDouble(length));
+								} catch (NumberFormatException e) {
+									continue r;
+								}
+							}
+						}
+						
+						
+
+					}//for
+
+					/*
+					 * JSONArray kds = ja .getJSONArray(
+					 * "/base/aptamer/interaction/has_dissociation_constant");
+					 * List<Double> tmpKds = new ArrayList<Double>(); for (int j
+					 * = 0; j < kds.length(); j++) { JSONObject currKd =
+					 * kds.getJSONObject(j); String kd = currKd
+					 * .getString("/base/aptamer/dissociation_constant/has_value"
+					 * ); String kd_tmp = currKd .getString(
+					 * "/base/aptamer/dissociation_constant/has_temporary_string_value"
+					 * ) .replace("\"", ""); Double aKd = -1.0; try { aKd =
+					 * Double.parseDouble(kd); } catch (NumberFormatException e)
+					 * { try { aKd = Double.parseDouble(kd_tmp); } catch
+					 * (NumberFormatException e2) { aKd = -1.0; } } if
+					 * (negativeLog10 == true) { if (aKd > 0.0) { Double x =
+					 * (-1) * Math.log10(aKd); tmpKds.add(x); } } else {
+					 * tmpKds.add(aKd); } } // now store only the average or the
+					 * best kd Double kd_val = -1.0; if (bestKdOnly) { if
+					 * (tmpKds.size() > 1) { kd_val = StatUtils.getMin(tmpKds);
+					 * } else { kd_val = StatUtils.getMin(tmpKds); } } else {
+					 * kd_val = StatUtils.computeAverage(tmpKds); }
+					 */
+
+					/*
+					 * pmid = ja.getJSONArray(
+					 * "/base/aptamer/experiment/pubmed_id") .getString(0); if
+					 * (pmid != null && pmid.length() > 0) { if
+					 * (!pubmeds.containsKey(pmid)) { // get the year PubmedInfo
+					 * pi = new PubmedInfo(pmid); year =
+					 * pi.getPublicationYear(); pubmeds.put(pmid, pi); } else {
+					 * year = pubmeds.get(pmid).getPublicationYear(); } } }
+					 * catch (JSONException e) { continue r; }
+					 */
+					// get the template length
+					
+
+				}// for
+			}
+		} catch (JSONException e) {
+			e.printStackTrace();
+		}
+		return null;
 	}
 
 	private List<Coordinate<Integer, String, Integer>> makeYearVsBufferingAgent(
@@ -2088,6 +2235,63 @@ public class GetTables extends HttpServlet {
 			query = query.replace("\\\\", "");
 			query = query.replace("\\/", "/");
 			return query;
+		} catch (JSONException e) {
+			e.printStackTrace();
+		}
+
+		return null;
+	}
+
+	private String makeKdVsTemplateLengthQuery(String anAptamerType) {
+		try {
+			JSONArray rm = new JSONArray();
+			JSONObject root = new JSONObject();
+			root.put("mid", JSONObject.NULL);
+			root.put("\"type\"", "/base/aptamer/selex_experiment");
+			JSONArray ecArr = new JSONArray();
+			JSONObject anEc = new JSONObject();
+			anEc.put("\"b:type\"", "/base/aptamer/selex_conditions");
+			anEc.put("\"optional\"", false);
+			anEc.put(
+					"\"/base/aptamer/selex_conditions/has_template_sequence\"",
+					new JSONArray());
+			ecArr.put(anEc);
+			root.put("\"/base/aptamer/experiment/has_experimetal_conditions\"",
+					ecArr);
+			JSONArray outArr = new JSONArray();
+			JSONObject anOut = new JSONObject();
+			JSONArray partArr = new JSONArray();
+			JSONObject aPart = new JSONObject();
+			aPart.put("\"d:type\"", "/base/aptamer/aptamer");
+			if (anAptamerType.equalsIgnoreCase("dna")) {
+				aPart.put("\"x:type\"", "/base/aptamer/dna");
+			} else if (anAptamerType.equalsIgnoreCase("rna")) {
+				aPart.put("\"x:type\"", "/base/aptamer/rna");
+			}
+			partArr.put(aPart);
+			anOut.put("\"/base/aptamer/interaction/has_participant\"", partArr);
+			anOut.put("\"c:type\"", "/base/aptamer/interaction");
+			outArr.put(anOut);
+
+			JSONArray kds = new JSONArray();
+			JSONObject aKd = new JSONObject();
+			aKd.put("\"/base/aptamer/dissociation_constant/has_value\"",
+					JSONObject.NULL);
+			aKd.put("\"/base/aptamer/dissociation_constant/has_temporary_string_value\"",
+					JSONObject.NULL);
+			kds.put(aKd);
+			anOut.put(
+					"\"/base/aptamer/interaction/has_dissociation_constant\"",
+					kds);
+			root.put("\"/base/aptamer/experiment/has_outcome\"", outArr);
+
+			rm.put(root);
+			String query = rm.toString();
+			query = query.replace("\\\"", "");
+			query = query.replace("\\\\", "");
+			query = query.replace("\\/", "/");
+			return query;
+
 		} catch (JSONException e) {
 			e.printStackTrace();
 		}

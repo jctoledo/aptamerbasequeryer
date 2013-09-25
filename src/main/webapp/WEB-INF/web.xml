@@ -5,11 +5,47 @@
 
 <web-app>
 
-  <!-- Servlets -->
+	<!-- Servlets -->
 
-  <!-- Default page to serve -->
-  <welcome-file-list>
-    <welcome-file>ab.html</welcome-file>
-  </welcome-file-list>
+	<servlet>
+		<servlet-name>BrowseSelexExperimentsAjaxed</servlet-name>
+		<servlet-class>ui.server.SelexExperimentBrowseAjax</servlet-class>
+	</servlet>
+
+
+	<servlet>
+		<servlet-name>GetEnumerations</servlet-name>
+		<servlet-class>ui.server.GetEnumerations</servlet-class>
+	</servlet>
+
+	<servlet>
+		<servlet-name>GetTables</servlet-name>
+		<servlet-class>ui.server.GetTables</servlet-class>
+	</servlet>
+
+	<servlet>
+		<servlet-name>jUnitHostImpl</servlet-name>
+		<servlet-class>com.google.gwt.junit.server.JUnitHostImpl</servlet-class>
+	</servlet>
+	<servlet-mapping>
+		<servlet-name>jUnitHostImpl</servlet-name>
+		<url-pattern>/ab/junithost/*</url-pattern>
+	</servlet-mapping>
+
+	<servlet-mapping>
+		<servlet-name>BrowseSelexExperimentsAjaxed</servlet-name>
+		<url-pattern>/ui/bse</url-pattern>
+	</servlet-mapping>
+
+	<servlet-mapping>
+		<servlet-name>GetTables</servlet-name>
+		<url-pattern>/ui/tables</url-pattern>
+	</servlet-mapping>
+
+
+	<servlet-mapping>
+		<servlet-name>GetEnumerations</servlet-name>
+		<url-pattern>/ui/enums</url-pattern>
+	</servlet-mapping>
 
 </web-app>
